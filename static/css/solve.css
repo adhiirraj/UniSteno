@@ -1,0 +1,151 @@
+/* solve.css */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Mono:wdth,wght@75,100..900&display=swap');
+
+:root {
+  --bg: #070812;
+  --card: rgba(255,255,255,0.04);
+  --muted: rgba(255,255,255,0.6);
+}
+
+/* background kept as you had it (diagonal) */
+body {
+  background: linear-gradient(135deg, #072d0f 0%, #0b0f1a 100%);
+  background-attachment: fixed;
+  background-size: cover;
+  color: #e8eef8;
+  font-family: "Noto Sans Mono", monospace;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  transition: background 0.5s ease, padding 0.3s ease;
+}
+.container { max-width: 920px; }
+
+/* Result / animation helpers */
+#upload-status {
+  transition: opacity .3s ease;
+  font-size: 0.9rem;
+}
+
+.fade-in {
+  opacity: 0;
+  animation: fadeIn 0.4s ease forwards;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+#result {
+  transition: all 0.4s ease;
+}
+#result-infos, #result-analyzers {
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+/* Drop zone */
+#drop-zone { transition: box-shadow .15s ease; }
+#drop-zone:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.5); }
+
+/* Image modal */
+.image-modal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0,0,0,0.8);
+  z-index: 2000;
+}
+.image-modal .image-modal-body { max-width: 90%; max-height: 90%; }
+.image-modal img { max-width: 100%; max-height: 80vh; display: block; margin: 0 auto; }
+.image-modal .btn-close {
+  position: absolute; right: 2rem; top: 1.5rem; background: transparent; border: none; color: #fff; font-size: 22px;
+}
+
+/* progress */
+.progress { height: 18px; }
+.progress-bar { transition: width .3s ease; background: linear-gradient(90deg, #6b8cff, #3dd6c8); }
+
+/* =======================
+   Liquid glass card (no desaturation on hover)
+   ======================= */
+.card {
+  position: relative; /* required for ::before to be positioned correctly */
+
+  /* subtle translucent layer; keep alpha low so no desaturation */
+  background: rgba(255, 255, 255, 0.08);
+
+  /* preserve color: blur + high saturation so background colors remain vivid */
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 18px;
+
+  box-shadow:
+    0 4px 30px rgba(0,0,0,0.25),
+    inset 0 0 30px rgba(255,255,255,0.02);
+
+  padding: 24px;
+  transition:
+    transform .28s ease,
+    box-shadow .28s ease,
+    border-color .28s ease,
+    background .28s ease;
+}
+
+/* hover: DO NOT increase white overlay — only lift + border/shadow tweak */
+.card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(255,255,255,0.26); /* brighter rim */
+  box-shadow:
+    0 10px 50px rgba(0,0,0,0.36),
+    inset 0 0 40px rgba(255,255,255,0.025);
+  /* keep same background alpha so saturation is preserved */
+  background: rgba(255,255,255,0.08);
+}
+
+/* Keep text colours readable */
+.card p,
+.card label,
+.card small {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+/* Drop zone styling */
+#drop-zone {
+  background: rgba(255,255,255,0.06);
+  border: 1px dashed rgba(255,255,255,0.28);
+  border-radius: 14px;
+  transition: background .3s ease, border-color .3s ease, box-shadow .2s ease;
+}
+#drop-zone:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.5);
+}
+
+/* subtle sheen / highlight that follows mouse (low alpha to avoid washout) */
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+
+  opacity: 0;
+  transition: opacity .35s ease, transform .35s ease;
+  transform: translateZ(0);
+}
+
+/* show highlight on hover but keep it very subtle */
+.card:hover::before {
+  opacity: 1;
+}
+
+/* small tweak for accessibility: lighten outline when focused via keyboard */
+.card:focus-within {
+  box-shadow:
+    0 12px 60px rgba(0,0,0,0.40),
+    inset 0 0 40px rgba(255,255,255,0.03);
+  border-color: rgba(255,255,255,0.30);
+}
