@@ -1,14 +1,12 @@
-# Python
 __pycache__/
 *.pyc
 
-# Virtual environments
 venv/
 .env/
 
-# Upload directory (runtime files)
 uploads/*
 
-# OS files
 .DS_Store
 Thumbs.db
+
+.vscode/
