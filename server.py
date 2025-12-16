@@ -59,10 +59,6 @@ def load_plugins():
                     has_analyze = callable(getattr(inst, "analyze", None))
                     has_embed = callable(getattr(inst, "embed", None))
                     has_extract = callable(getattr(inst, "extract", None))
-
-                    # Accept plugins that declare can_handle AND at least one of:
-                    #  - analyze()  (analyzer)
-                    #  - embed()/extract() (stego)
                     if has_can and (has_analyze or has_embed or has_extract):
                         LOADED_PLUGINS.append(inst)
                     else:
@@ -85,7 +81,6 @@ def detect_mime(filepath: Path):
             return m.from_file(str(filepath))
         except Exception as e:
             print("python-magic detection failed:", e)
-    # fallback mapping
     ext = filepath.suffix.lower()
     mapping = {
         ".png": "image/png",
@@ -227,7 +222,6 @@ def embed():
     if not infile.exists():
         return jsonify({"error": "file not found"}), 404
 
-    # read payload once and capture original filename (sanitized)
     payload_bytes = payload_file.read()
     payload_name = secure_filename(payload_file.filename or "payload.bin")
 
@@ -236,7 +230,6 @@ def embed():
             if p.can_handle(detect_mime(infile), infile) and hasattr(p, "embed"):
                 outname = f"embedded_{fname}"
                 outfile = UPLOAD_DIR / outname
-                # pass payload_name into plugin.embed
                 info = p.embed(infile, payload_bytes, password, outfile, payload_name)
                 return jsonify({"outfile": outname, "info": info})
         except Exception as e:
@@ -260,17 +253,14 @@ def extract():
             if p.can_handle(detect_mime(infile), infile) and hasattr(p, "extract"):
                 res = p.extract(infile, password)
 
-                # Plugin returned raw payload bytes
                 if isinstance(res, dict) and isinstance(res.get("payload"), (bytes, bytearray)):
                     payload = res.get("payload")
                     suggested_name = res.get("name", "extracted.bin")
 
-                    # Guess MIME type from filename
                     guessed_type, _ = mimetypes.guess_type(suggested_name)
                     if not guessed_type:
                         guessed_type = "application/octet-stream"
 
-                    # Serve inline for text/* so browsers show it; otherwise force download
                     inline = guessed_type.startswith("text/")
 
                     return send_file(
@@ -280,7 +270,6 @@ def extract():
                         mimetype=f"{guessed_type}; charset=utf-8" if guessed_type.startswith("text/") else guessed_type
                     )
 
-                # Plugin returned structured JSON (error/info/etc.)
                 else:
                     return jsonify(res)
         except Exception as e:

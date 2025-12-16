@@ -2,12 +2,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Mono:wdth,wght@75,100..900&display=swap');
 
 :root {
-  --bg: #070812;
   --card: rgba(255,255,255,0.04);
   --muted: rgba(255,255,255,0.6);
 }
 
-/* background kept as you had it (diagonal) */
 body {
   background: linear-gradient(135deg, #072d0f 0%, #0b0f1a 100%);
   background-attachment: fixed;
@@ -21,7 +19,6 @@ body {
 }
 .container { max-width: 920px; }
 
-/* Result / animation helpers */
 #upload-status {
   transition: opacity .3s ease;
   font-size: 0.9rem;
@@ -43,11 +40,9 @@ body {
   transition: opacity 0.4s ease, transform 0.4s ease;
 }
 
-/* Drop zone */
 #drop-zone { transition: box-shadow .15s ease; }
 #drop-zone:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.5); }
 
-/* Image modal */
 .image-modal {
   position: fixed;
   inset: 0;
@@ -62,20 +57,11 @@ body {
   position: absolute; right: 2rem; top: 1.5rem; background: transparent; border: none; color: #fff; font-size: 22px;
 }
 
-/* progress */
-.progress { height: 18px; }
-.progress-bar { transition: width .3s ease; background: linear-gradient(90deg, #6b8cff, #3dd6c8); }
-
-/* =======================
-   Liquid glass card (no desaturation on hover)
-   ======================= */
 .card {
-  position: relative; /* required for ::before to be positioned correctly */
+  position: relative;
 
-  /* subtle translucent layer; keep alpha low so no desaturation */
   background: rgba(255, 255, 255, 0.08);
 
-  /* preserve color: blur + high saturation so background colors remain vivid */
   backdrop-filter: blur(22px) saturate(180%);
   -webkit-backdrop-filter: blur(22px) saturate(180%);
 
@@ -94,25 +80,21 @@ body {
     background .28s ease;
 }
 
-/* hover: DO NOT increase white overlay — only lift + border/shadow tweak */
 .card:hover {
   transform: translateY(-3px);
-  border-color: rgba(255,255,255,0.26); /* brighter rim */
+  border-color: rgba(255,255,255,0.26);
   box-shadow:
     0 10px 50px rgba(0,0,0,0.36),
     inset 0 0 40px rgba(255,255,255,0.025);
-  /* keep same background alpha so saturation is preserved */
   background: rgba(255,255,255,0.08);
 }
 
-/* Keep text colours readable */
 .card p,
 .card label,
 .card small {
   color: rgba(255, 255, 255, 0.92);
 }
 
-/* Drop zone styling */
 #drop-zone {
   background: rgba(255,255,255,0.06);
   border: 1px dashed rgba(255,255,255,0.28);
@@ -124,7 +106,6 @@ body {
   border-color: rgba(255,255,255,0.5);
 }
 
-/* subtle sheen / highlight that follows mouse (low alpha to avoid washout) */
 .card::before {
   content: "";
   position: absolute;
@@ -137,12 +118,10 @@ body {
   transform: translateZ(0);
 }
 
-/* show highlight on hover but keep it very subtle */
 .card:hover::before {
   opacity: 1;
 }
 
-/* small tweak for accessibility: lighten outline when focused via keyboard */
 .card:focus-within {
   box-shadow:
     0 12px 60px rgba(0,0,0,0.40),

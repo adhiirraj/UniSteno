@@ -269,20 +269,17 @@
 
     console.log("solve.js initialization complete.");
   });
-  // Stable static random-binary SVG background (fixed to viewport, not reactive to mouse)
   (function applyStableSvgBinaryBackground() {
-    const OPACITY = 0.12;   // tweak visibility (0.12 = 12%)
-   const FONT_PX = 12;     // char size in px
-   const MAX_COLS = 200;   // safety caps
+    const OPACITY = 0.12;
+   const FONT_PX = 12;
+   const MAX_COLS = 200;
    const MAX_ROWS = 120;
    const FONT_FAMILY = "Noto Sans Mono, monospace";
 
    function buildAndSet() {
-     // viewport size (use innerWidth/innerHeight for accurate viewport)
      const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
      const vh = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
 
-     // measure monospace char width (accurate)
      const measure = document.createElement("span");
      measure.style.fontFamily = FONT_FAMILY;
      measure.style.fontSize = FONT_PX + "px";
@@ -293,30 +290,23 @@
      const charW = Math.ceil(measure.getBoundingClientRect().width) || Math.ceil(FONT_PX * 0.6);
      document.body.removeChild(measure);
 
-     // compute columns/rows, but cap so we don't create huge SVGs
      let cols = Math.ceil(vw / charW);
      let rows = Math.ceil(vh / FONT_PX);
      cols = Math.min(cols, MAX_COLS);
      rows = Math.min(rows, MAX_ROWS);
 
-     // SVG dimensions: set to actual viewport so it covers full screen
      const svgW = vw;
      const svgH = vh;
 
-     // We'll draw characters at integer positions scaled to fill viewport
-     // Compute effective spacing so grid covers svgW/svgH
      const xStep = svgW / cols;
      const yStep = svgH / rows;
      const xOffset = Math.floor(xStep / 2);
-     const yOffset = Math.floor(yStep * 0.85); // baseline tweak
+     const yOffset = Math.floor(yStep * 0.85);
 
-     // Build SVG as string
      let parts = [];
      parts.push(`<svg xmlns='http://www.w3.org/2000/svg' width='${svgW}' height='${svgH}' viewBox='0 0 ${svgW} ${svgH}'>`);
      parts.push(`<rect width='100%' height='100%' fill='transparent'/>`);
 
-     // paint each character deterministically random (non-repeating grid)
-     // Use Math.random() here — if you want reproducible results, replace with a seeded PRNG.
      for (let r = 0; r < rows; r++) {
        const y = r * yStep + yOffset;
        for (let c = 0; c < cols; c++) {
@@ -331,20 +321,15 @@
      parts.push("</svg>");
      const svg = parts.join("");
 
-     // Convert to data URL (URI-encode)
      const dataUrl = "data:image/svg+xml;utf8," + encodeURIComponent(svg);
 
-     // Compose gradient + svg. Put svg first so it's painted on top of gradient,
-     // but UI content (container) should have higher z-index so it remains above.
      const gradient = "linear-gradient(135deg, #072d0f 0%, #0b0f1a 100%)";
 
-     // Apply in one go (minimize repaints) and set safe static properties
      const body = document.body;
      body.style.backgroundImage = `url("${dataUrl}"), ${gradient}`;
      body.style.backgroundRepeat = "no-repeat, no-repeat";
      body.style.backgroundSize = `${svgW}px ${svgH}px, cover`;
      body.style.backgroundPosition = `left top, center center`;
-     // Keep background-attachment fixed for both layers so they don't jitter relative to viewport
      body.style.backgroundAttachment = "fixed, fixed";
    }
 

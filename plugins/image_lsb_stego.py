@@ -1,4 +1,4 @@
-# plugins/image_lsb_stego.py
+#image_lsb_stego.py
 import hashlib
 import zlib
 from pathlib import Path
@@ -18,14 +18,6 @@ class ImageLSBStegoPlugin:
         return int.from_bytes(h[:8], byteorder="big", signed=False)
 
     def embed(self, infile, payload_bytes: bytes, password: str, outfile, payload_name: str = ""):
-        """
-        Embed layout stored in this order:
-         - 4 bytes: filename length (N)
-         - N bytes: filename (utf-8)
-         - 4 bytes: payload length (L)
-         - L bytes: payload
-         - 4 bytes: crc32(payload) (for integrity)
-        """
         im = Image.open(infile)
         has_alpha = 'A' in im.mode
         work_mode = 'RGBA' if has_alpha else 'RGB'
@@ -37,7 +29,6 @@ class ImageLSBStegoPlugin:
 
         flat = target.ravel()
 
-        # available positions (skip fully transparent pixels if present)
         if has_alpha:
             alpha = arr[..., 3].ravel()
             pixel_mask = (alpha != 0)
@@ -48,7 +39,6 @@ class ImageLSBStegoPlugin:
 
         capacity_bits = available_positions.size
 
-        # prepare header + payload
         name_bytes = (payload_name or "").encode("utf-8")
         name_len = len(name_bytes)
         name_len_b = name_len.to_bytes(4, byteorder='big')
@@ -73,7 +63,6 @@ class ImageLSBStegoPlugin:
         chosen_idx = perm[:nbits]
         chosen = available_positions[chosen_idx]
 
-        # safe uint8 ops
         src_vals = flat[chosen].astype(np.uint8)
         mask = np.uint8(0xFE)
         cleared = np.bitwise_and(src_vals, mask)
@@ -93,9 +82,6 @@ class ImageLSBStegoPlugin:
         return {"outfile": str(outfile), "payload_bytes": payload_len, "bits_written": int(nbits), "embedded_name": payload_name}
 
     def extract(self, infile, password: str):
-        """
-        Reverse of embed: read name_len, name, payload_len, payload, crc
-        """
         im = Image.open(infile)
         has_alpha = 'A' in im.mode
         work_mode = 'RGBA' if has_alpha else 'RGB'
