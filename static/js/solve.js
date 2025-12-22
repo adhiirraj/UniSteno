@@ -1,20 +1,45 @@
-/*solve.js*/
-
-(function(){
-  function $id(name) {
-    const el = document.getElementById(name);
-    if (!el) console.warn(`solve.js: missing element with id="${name}"`);
-    return el;
+(function () {
+  function $id(id) {
+    return document.getElementById(id);
   }
-  
-  document.addEventListener("DOMContentLoaded", () => {
-    console.log("solve.js loaded — DOMContentLoaded");
 
-    const base = window.location.origin;
+  const base = window.location.origin;
+
+  function renderBitplanes(planes) {
+    let html = "<h6 class='mt-4'>Bitplane Visualization</h6>";
+
+    for (const ch of ["R", "G", "B"]) {
+      html += `
+        <div class="mb-3">
+          <strong>${ch} Channel</strong>
+          <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:8px">
+      `;
+
+      for (let bit = 0; bit < 8; bit++) {
+        const img = planes[ch][`bit_${bit}`];
+        html += `
+          <div style="text-align:center;font-size:11px">
+            <img
+              src="data:image/png;base64,${img}"
+              style="width:100%;border-radius:4px;
+                     border:1px solid rgba(255,255,255,.15);
+                     image-rendering:pixelated"
+            />
+            <div>Bit ${bit}</div>
+          </div>
+        `;
+      }
+
+      html += "</div></div>";
+    }
+
+    $id("result-analyzers").innerHTML += html;
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
     const fileInput = $id("file-input");
     const drop = $id("drop-zone");
     const browseBtn = $id("browse-btn");
-    const sampleBtn = $id("sample-btn");
     const modeSelect = $id("mode");
     const payloadArea = $id("payload-area");
     const payloadInput = $id("payload");
@@ -22,330 +47,197 @@
     const submitBtn = $id("submit-btn");
     const resultInfos = $id("result-infos");
     const resultAnalyzers = $id("result-analyzers");
-
-    const criticalMissing = [];
-    if (!form) criticalMissing.push("upload-form (form)");
-    if (!fileInput) criticalMissing.push("file-input (hidden file field)");
-    if (!browseBtn) criticalMissing.push("browse-btn (choose file button)");
-    if (!submitBtn) criticalMissing.push("submit-btn (submit button)");
-
-    if (criticalMissing.length) {
-      console.error("solve.js: critical elements missing:", criticalMissing.join(", "));
-      if (resultInfos) {
-        resultInfos.innerHTML = `<div style="color: #ffb3b3; background:#2b0f0f; padding:12px; border-radius:6px;">
-          <strong>UniSteno UI error:</strong> Missing required elements: ${criticalMissing.join(", ")}.
-          Check your <code>index.html</code> that these IDs exist. See console for details.
-        </div>`;
-      }
-      return;
-    }
-
-    console.log("solve.js: all critical elements present, attaching handlers.");
+    const uploadStatus = $id("upload-status");
 
     let savedFilename = null;
 
     function clearResults() {
-      if (resultInfos) resultInfos.innerHTML = "";
-      if (resultAnalyzers) resultAnalyzers.innerHTML = "";
+      resultInfos.innerHTML = "";
+      resultAnalyzers.innerHTML = "";
     }
+
     function pretty(obj) {
-      try { return `<pre style="white-space:pre-wrap">${JSON.stringify(obj, null, 2)}</pre>`; }
-      catch(e) { return String(obj); }
-    }
-
-    if (browseBtn && fileInput) {
-      browseBtn.addEventListener("click", () => fileInput.click());
-    }
-
-    fileInput.addEventListener("change", async () => {
-      const file = fileInput.files[0];
-      if (!file) return;
-
-      const dm = document.getElementById("drag-msg");
-      if (dm) dm.textContent = file.name;
-
-      try {
-        await autoUploadFile(file);
-      } catch (err) {
-        alert("Upload error: " + err.message);
-      }
-    });
-
-    if (sampleBtn) {
-      sampleBtn.addEventListener("click", () => {
-        alert("No sample file added yet.");
-      });
-    }
-
-    if (drop) {
-      drop.addEventListener("dragover", (e) => {
-        e.preventDefault();
-        drop.classList.add("border-primary");
-      });
-      drop.addEventListener("dragleave", () => {
-        drop.classList.remove("border-primary");
-      });
-      drop.addEventListener("drop", async (e) => {
-        e.preventDefault();
-        drop.classList.remove("border-primary");
-        const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-        if (f && fileInput) {
-          fileInput.files = e.dataTransfer.files;
-          const dm = $id("drag-msg");
-          if (dm) dm.textContent = `${f.name} selected`;
-
-          try {
-            await autoUploadFile(f);
-          } catch (err) {
-            alert("Upload error: " + err.message);
-          }
-        }
-      });
-    }
-
-    if (modeSelect) {
-      function updateMode() {
-        if (modeSelect.value === "embed" && payloadArea) payloadArea.classList.remove("d-none");
-        else if (payloadArea) payloadArea.classList.add("d-none");
-      }
-      modeSelect.addEventListener("change", updateMode);
-      updateMode();
+      return `<pre style="white-space:pre-wrap">${JSON.stringify(obj, null, 2)}</pre>`;
     }
 
     async function autoUploadFile(file) {
       const fd = new FormData();
       fd.append("file", file);
 
-      console.log("[client] Auto-uploading:", file.name);
-
       const res = await fetch(base + "/upload", {
         method: "POST",
         body: fd
       });
 
-      const text = await res.text().catch(()=>null);
-      let json = null;
-      try { json = text ? JSON.parse(text) : null; } catch(e) {
-        throw new Error("Upload returned non-JSON: " + text);
-      }
-
-      if (!res.ok) {
-        throw new Error(json?.error || "Upload failed");
-      }
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Upload failed");
 
       savedFilename = json.filename;
-
-      const uploadStatus = document.getElementById("upload-status");
-      if (uploadStatus) {
-        uploadStatus.innerHTML =
-          `<span style="color:#6bff8a; font-weight:600;">✔ File uploaded: ${savedFilename}</span>`;
-      }
-
-      return json;
+      uploadStatus.innerHTML =
+        `<span style="color:#6bff8a;font-weight:600;">✔ File uploaded: ${savedFilename}</span>`;
     }
 
-    async function handleSubmitEvent(e) {
-      if (e && typeof e.preventDefault === "function") e.preventDefault();
+    browseBtn.addEventListener("click", () => fileInput.click());
+
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      $id("drag-msg").textContent = file.name;
+      await autoUploadFile(file);
+    });
+
+    drop.addEventListener("dragover", e => {
+      e.preventDefault();
+      drop.classList.add("border-primary");
+    });
+
+    drop.addEventListener("dragleave", () => {
+      drop.classList.remove("border-primary");
+    });
+
+    drop.addEventListener("drop", async e => {
+      e.preventDefault();
+      drop.classList.remove("border-primary");
+      const file = e.dataTransfer.files[0];
+      if (!file) return;
+      fileInput.files = e.dataTransfer.files;
+      $id("drag-msg").textContent = file.name;
+      await autoUploadFile(file);
+    });
+
+    modeSelect.addEventListener("change", () => {
+      payloadArea.classList.toggle("d-none", modeSelect.value !== "embed");
+    });
+
+    async function handleSubmit(e) {
+      e.preventDefault();
       clearResults();
 
-      const mode = (modeSelect && modeSelect.value) || "analyze";
-      const password = ($id("password") && $id("password").value.trim()) || "";
-      const file = (fileInput && fileInput.files && fileInput.files[0]) || null;
-
-      if (!file) {
-        alert("Please choose a file first.");
+      if (!savedFilename) {
+        alert("Please upload a file first.");
         return;
       }
 
-      try {
-        if (!savedFilename) {
-          try {
-            await autoUploadFile(file);
-          } catch (err) {
-            throw new Error("Failed to upload before submit: " + (err.message || err));
+      const mode = modeSelect.value;
+      const password = $id("password").value.trim();
+
+      if (mode === "analyze") {
+        const fd = new FormData();
+        fd.append("filename", savedFilename);
+
+        const res = await fetch(base + "/analyze", {
+          method: "POST",
+          body: fd
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => null);
+          throw new Error(err?.error || "Analyze failed");
+        }
+
+        const json = await res.json();
+
+        resultInfos.classList.add("fade-in");
+        resultInfos.innerHTML = pretty({
+          server_saved_filename: savedFilename,
+          basic: {
+            mime: json.mime,
+            size: json.size,
+            type: json.type || "unknown"
+          }
+        });
+
+        if (json.plugins) {
+          const pluginsCopy = { ...json.plugins };
+          delete pluginsCopy.image_bitplane_visualizer;
+
+          if (Object.keys(pluginsCopy).length > 0) {
+            resultAnalyzers.innerHTML += `
+              <h6 class="mt-3">Analyzer Output</h6>
+              ${pretty(pluginsCopy)}
+            `;
           }
         }
 
-        const uploadStatus = document.getElementById("upload-status");
-        if (uploadStatus) {
-          uploadStatus.innerHTML = `<span style="color:#6bff8a;">✔ File uploaded: ${savedFilename}</span>`;
+        const bitplane = json.plugins?.image_bitplane_visualizer;
+        if (bitplane?.planes) {
+          renderBitplanes(bitplane.planes);
         }
 
-        if (mode === "analyze") {
-          const analyzeData = new FormData();
-          analyzeData.append("filename", savedFilename);
-          const analyzeRes = await fetch(base + "/analyze", { method: "POST", body: analyzeData });
-          if (!analyzeRes.ok) {
-            const err = await analyzeRes.json().catch(()=>null);
-            throw new Error(err?.error || `Analyze failed (${analyzeRes.status})`);
-          }
-          const analyzeJson = await analyzeRes.json();
-          resultInfos.classList.add("fade-in");
-          resultInfos.innerHTML = pretty({ server_saved_filename: savedFilename, basic: { mime: analyzeJson.mime, size: analyzeJson.size, type: analyzeJson.type || "unknown" }});
-          const analyzers = Object.assign({}, analyzeJson);
-          delete analyzers.mime; delete analyzers.size; delete analyzers.filename;
-          if (resultAnalyzers){
-            resultAnalyzers.classList.add("fade-in");
-            resultAnalyzers.innerHTML = `<h6>Analyzer output</h6>${pretty(analyzers)}`;
-          }
+        return;
+      }
+
+      if (mode === "embed") {
+        const payloadFile = payloadInput.files[0];
+        if (!payloadFile) {
+          alert("Please select a payload file.");
           return;
         }
 
-        if (mode === "embed") {
-          const payloadFile = (payloadInput && payloadInput.files && payloadInput.files[0]) || null;
-          if (!payloadFile) { alert("You must select a payload to embed."); return; }
+        const fd = new FormData();
+        fd.append("filename", savedFilename);
+        fd.append("password", password);
+        fd.append("payload", payloadFile);
 
-          const embedData = new FormData();
-          embedData.append("filename", savedFilename);
-          embedData.append("password", password);
-          embedData.append("payload", payloadFile);
+        const res = await fetch(base + "/embed", {
+          method: "POST",
+          body: fd
+        });
 
-          const embedRes = await fetch(base + "/embed", { method: "POST", body: embedData });
-          if (!embedRes.ok) {
-            const err = await embedRes.json().catch(()=>null);
-            throw new Error(err?.error || `Embed failed (${embedRes.status})`);
-          }
-          const embedJson = await embedRes.json();
-          if (resultInfos) resultInfos.innerHTML = pretty(embedJson);
-          if (embedJson.outfile && resultInfos) {
-            const link = document.createElement("a");
-            link.href = `/uploads/${encodeURIComponent(embedJson.outfile)}`;
-            link.download = embedJson.outfile;
-            link.textContent = `Download embedded file (${embedJson.outfile})`;
-            link.className = "btn btn-sm btn-outline-light mt-2";
-            const wrap = document.createElement("div");
-            wrap.appendChild(link);
-            resultInfos.appendChild(wrap);
-          }
-          return;
+        const json = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(json?.error || "Embed failed");
+
+        resultInfos.classList.add("fade-in");
+        resultInfos.innerHTML = `
+          <h6 class="mb-2">Embedding Successful</h6>
+          <ul class="small">
+            <li><strong>Output file:</strong> ${json.outfile}</li>
+            <li><strong>Payload size:</strong> ${json.info?.payload_bytes ?? "?"} bytes</li>
+            <li><strong>Bits written:</strong> ${json.info?.bits_written ?? "?"}</li>
+          </ul>
+        `;
+
+        if (json.outfile) {
+          const link = document.createElement("a");
+          link.href = `/uploads/${encodeURIComponent(json.outfile)}`;
+          link.download = json.outfile;
+          link.textContent = "Download embedded file";
+          link.className = "btn btn-sm btn-outline-light mt-2";
+          resultInfos.appendChild(link);
         }
 
-        if (mode === "extract") {
-          const extractData = new FormData();
-          extractData.append("filename", savedFilename);
-          extractData.append("password", password);
+        return;
+      }
 
-          const extractRes = await fetch(base + "/extract", { method: "POST", body: extractData });
-          const contentType = extractRes.headers.get("content-type") || "";
+      if (mode === "extract") {
+        const fd = new FormData();
+        fd.append("filename", savedFilename);
+        fd.append("password", password);
 
-          if (!extractRes.ok) {
-            const err = await extractRes.json().catch(()=>null);
-            throw new Error(err?.error || `Extract failed (${extractRes.status})`);
-          }
+        const res = await fetch(base + "/extract", {
+          method: "POST",
+          body: fd
+        });
 
-          if (!contentType.includes("application/json")) {
-            const blob = await extractRes.blob();
-            const cd = extractRes.headers.get("content-disposition") || "";
-            let suggestedName = "extracted.bin";
-            const match = /filename="?([^"]+)"?/.exec(cd);
-            if (match) suggestedName = match[1];
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = suggestedName;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
-            if (resultInfos) resultInfos.innerHTML = `<div class="text-success">Downloaded extracted payload (${suggestedName})</div>`;
-            return;
-          }
-
-          const extractJson = await extractRes.json();
-          if (resultInfos) resultInfos.innerHTML = pretty(extractJson);
-          return;
+        if (!res.ok) {
+          const err = await res.json().catch(() => null);
+          throw new Error(err?.error || "Extract failed");
         }
 
-      } catch (error) {
-        console.error("handleSubmitEvent error:", error);
-        alert("An error occurred: " + (error.message || error));
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "extracted_payload";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
       }
     }
 
-    if (form) form.addEventListener("submit", handleSubmitEvent);
-    if (submitBtn) submitBtn.addEventListener("click", handleSubmitEvent);
-
-    submitBtn.addEventListener("click", () => console.log("submit-btn clicked"));
-
-    console.log("solve.js initialization complete.");
+    form.addEventListener("submit", handleSubmit);
+    submitBtn.addEventListener("click", handleSubmit);
   });
-  (function applyStableSvgBinaryBackground() {
-    const OPACITY = 0.12;
-   const FONT_PX = 12;
-   const MAX_COLS = 200;
-   const MAX_ROWS = 120;
-   const FONT_FAMILY = "Noto Sans Mono, monospace";
-
-   function buildAndSet() {
-     const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
-     const vh = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
-
-     const measure = document.createElement("span");
-     measure.style.fontFamily = FONT_FAMILY;
-     measure.style.fontSize = FONT_PX + "px";
-     measure.style.visibility = "hidden";
-     measure.style.position = "absolute";
-     measure.textContent = "0";
-     document.body.appendChild(measure);
-     const charW = Math.ceil(measure.getBoundingClientRect().width) || Math.ceil(FONT_PX * 0.6);
-     document.body.removeChild(measure);
-
-     let cols = Math.ceil(vw / charW);
-     let rows = Math.ceil(vh / FONT_PX);
-     cols = Math.min(cols, MAX_COLS);
-     rows = Math.min(rows, MAX_ROWS);
-
-     const svgW = vw;
-     const svgH = vh;
-
-     const xStep = svgW / cols;
-     const yStep = svgH / rows;
-     const xOffset = Math.floor(xStep / 2);
-     const yOffset = Math.floor(yStep * 0.85);
-
-     let parts = [];
-     parts.push(`<svg xmlns='http://www.w3.org/2000/svg' width='${svgW}' height='${svgH}' viewBox='0 0 ${svgW} ${svgH}'>`);
-     parts.push(`<rect width='100%' height='100%' fill='transparent'/>`);
-
-     for (let r = 0; r < rows; r++) {
-       const y = r * yStep + yOffset;
-       for (let c = 0; c < cols; c++) {
-         const x = Math.round(c * xStep + xOffset);
-         const bit = Math.random() > 0.5 ? "1" : "0";
-         parts.push(
-           `<text x='${x}' y='${y}' font-family='${FONT_FAMILY}' font-size='${FONT_PX}px' text-anchor='middle' fill='white' fill-opacity='${OPACITY}' style='dominant-baseline:alphabetic; text-rendering:optimizeLegibility;'>${bit}</text>`
-         );
-       }
-     }
-
-     parts.push("</svg>");
-     const svg = parts.join("");
-
-     const dataUrl = "data:image/svg+xml;utf8," + encodeURIComponent(svg);
-
-     const gradient = "linear-gradient(135deg, #072d0f 0%, #0b0f1a 100%)";
-
-     const body = document.body;
-     body.style.backgroundImage = `url("${dataUrl}"), ${gradient}`;
-     body.style.backgroundRepeat = "no-repeat, no-repeat";
-     body.style.backgroundSize = `${svgW}px ${svgH}px, cover`;
-     body.style.backgroundPosition = `left top, center center`;
-     body.style.backgroundAttachment = "fixed, fixed";
-   }
-
-   function onResizeDebounced() {
-     clearTimeout(onResizeDebounced._t);
-     onResizeDebounced._t = setTimeout(buildAndSet, 140);
-   }
-
-   if (document.readyState === "loading") {
-     document.addEventListener("DOMContentLoaded", () => {
-       buildAndSet();
-       window.addEventListener("resize", onResizeDebounced);
-     }, { once: true });
-   } else {
-     buildAndSet();
-     window.addEventListener("resize", onResizeDebounced);
-   }
-  })();
 })();
