@@ -1,4 +1,7 @@
-#server.py
+# server.py
+# Main backend server for UniSteno
+# Handles file upload, analysis, embedding, extraction, and plugin management
+
 import mimetypes
 import io
 import os
@@ -6,51 +9,75 @@ import importlib.util
 import traceback
 import time
 from pathlib import Path
+
 from flask import Flask, request, jsonify, send_from_directory, send_file
 from werkzeug.utils import secure_filename
 
+# Optional dependency: python-magic for accurate MIME detection
 try:
     import magic
 except Exception:
     magic = None
 
+# Optional dependency: Pillow for image inspection
 try:
     from PIL import Image
 except Exception:
     Image = None
 
+# ================= PATH SETUP =================
+
 BASE_DIR = Path(".").resolve()
 UPLOAD_DIR = BASE_DIR / "uploads"
 PLUGINS_DIR = BASE_DIR / "plugins"
+
+# Ensure required directories exist
 UPLOAD_DIR.mkdir(exist_ok=True)
 PLUGINS_DIR.mkdir(exist_ok=True)
 
-MAX_CONTENT_LENGTH = 200 * 1024 * 1024  # 200 MB
+# Maximum allowed upload size (200 MB)
+MAX_CONTENT_LENGTH = 200 * 1024 * 1024
+
+# ================= FLASK APP =================
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 
+# ================= PLUGIN LOADING =================
 
+# Holds all successfully loaded plugin instances
 LOADED_PLUGINS = []
 
 def load_plugins():
+    """
+    Dynamically load all plugin modules from the plugins directory.
+    Each plugin must define:
+      - can_handle(mime, path)
+      - and at least one of analyze / embed / extract
+    """
     global LOADED_PLUGINS
     LOADED_PLUGINS = []
+
     for py in PLUGINS_DIR.glob("*.py"):
         name = py.stem
         try:
+            # Load module dynamically from file
             spec = importlib.util.spec_from_file_location(f"plugins.{name}", py)
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
 
+            # Collect plugin class candidates
             candidates = []
             for attr_name in dir(module):
                 attr = getattr(module, attr_name)
                 if isinstance(attr, type) and attr_name.lower().endswith("plugin"):
                     candidates.append(attr)
+
+            # Also support single variable named "plugin"
             if hasattr(module, "plugin"):
                 candidates.append(getattr(module, "plugin"))
 
+            # Instantiate and validate plugins
             for cand in candidates:
                 try:
                     inst = cand() if isinstance(cand, type) else cand
@@ -59,10 +86,16 @@ def load_plugins():
                     has_analyze = callable(getattr(inst, "analyze", None))
                     has_embed = callable(getattr(inst, "embed", None))
                     has_extract = callable(getattr(inst, "extract", None))
+
+                    # Plugin must support can_handle and at least one operation
                     if has_can and (has_analyze or has_embed or has_extract):
                         LOADED_PLUGINS.append(inst)
                     else:
-                        print(f"[plugin] skipping {cand}: has_can={has_can}, analyze={has_analyze}, embed={has_embed}, extract={has_extract}")
+                        print(
+                            f"[plugin] skipping {cand}: "
+                            f"has_can={has_can}, analyze={has_analyze}, "
+                            f"embed={has_embed}, extract={has_extract}"
+                        )
 
                 except Exception as e:
                     print(f"[plugin] failed to instantiate {cand}: {e}")
@@ -72,15 +105,24 @@ def load_plugins():
             print(f"[plugin] failed to load {py}: {e}")
             traceback.print_exc()
 
+# Load plugins at startup
 load_plugins()
 
+# ================= MIME DETECTION =================
+
 def detect_mime(filepath: Path):
+    """
+    Detect MIME type using python-magic if available,
+    otherwise fall back to extension-based mapping.
+    """
     if magic:
         try:
             m = magic.Magic(mime=True)
             return m.from_file(str(filepath))
         except Exception as e:
             print("python-magic detection failed:", e)
+
+    # Fallback MIME detection
     ext = filepath.suffix.lower()
     mapping = {
         ".png": "image/png",
@@ -100,9 +142,14 @@ def detect_mime(filepath: Path):
     }
     return mapping.get(ext, "application/octet-stream")
 
+# ================= FILE TYPE HEURISTICS =================
+
 def is_text_file(path: Path, blocksize: int = 4096):
     """
-    Heuristic: read chunk, check for NUL bytes, try UTF-8 decode.
+    Heuristic check for text files:
+    - Read small chunk
+    - Reject if NUL bytes found
+    - Attempt UTF-8 decoding
     """
     try:
         with open(path, "rb") as f:
@@ -116,7 +163,13 @@ def is_text_file(path: Path, blocksize: int = 4096):
     except Exception:
         return False
 
-def cleanup_old_uploads(max_age_seconds: int = 60*60):
+# ================= HOUSEKEEPING =================
+
+def cleanup_old_uploads(max_age_seconds: int = 60 * 60):
+    """
+    Delete uploaded files older than max_age_seconds
+    to prevent disk buildup.
+    """
     now = time.time()
     for p in UPLOAD_DIR.iterdir():
         try:
@@ -125,17 +178,26 @@ def cleanup_old_uploads(max_age_seconds: int = 60*60):
         except Exception:
             pass
 
+# ================= ROUTES =================
+
 @app.route("/")
 def index():
+    """Serve the main frontend HTML."""
     return send_from_directory(".", "index.html")
 
 @app.route("/uploads/<path:fname>")
 def serve_upload(fname):
+    """Serve uploaded files (for preview/download)."""
     return send_from_directory(UPLOAD_DIR, fname, as_attachment=False)
 
 @app.route("/upload", methods=["POST"])
 def upload():
-    cleanup_old_uploads()  # keep uploads tidy
+    """
+    Upload a file and store it in uploads directory.
+    Filename collisions are resolved automatically.
+    """
+    cleanup_old_uploads()
+
     f = request.files.get("file")
     if not f:
         return jsonify({"error": "no file provided"}), 400
@@ -146,6 +208,8 @@ def upload():
 
     save_path = UPLOAD_DIR / filename
     base, ext = os.path.splitext(filename)
+
+    # Handle duplicate filenames
     i = 1
     while save_path.exists():
         filename = f"{base}_{i}{ext}"
@@ -157,10 +221,16 @@ def upload():
     except Exception as e:
         return jsonify({"error": f"failed to save file: {e}"}), 500
 
-    return jsonify({"filename": filename, "size": save_path.stat().st_size})
+    return jsonify({
+        "filename": filename,
+        "size": save_path.stat().st_size
+    })
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
+    """
+    Analyze uploaded file using all compatible plugins.
+    """
     fname = request.form.get("filename")
     if not fname:
         return jsonify({"error": "filename required"}), 400
@@ -170,8 +240,15 @@ def analyze():
         return jsonify({"error": "file not found"}), 404
 
     mime = detect_mime(path)
-    response = {"filename": fname, "mime": mime, "size": path.stat().st_size}
 
+    # Base response metadata
+    response = {
+        "filename": fname,
+        "mime": mime,
+        "size": path.stat().st_size
+    }
+
+    # Image metadata
     if mime and mime.startswith("image/") and Image is not None:
         try:
             with Image.open(path) as im:
@@ -185,6 +262,7 @@ def analyze():
         except Exception as e:
             response["image_error"] = f"failed to read image: {e}"
 
+    # Text preview
     elif is_text_file(path):
         try:
             with open(path, "r", encoding="utf-8", errors="replace") as fh:
@@ -196,12 +274,12 @@ def analyze():
     else:
         response["note"] = "No specialized analyzer available for this MIME yet."
 
+    # Run plugins
     plugin_results = {}
     for plugin in LOADED_PLUGINS:
         try:
             if plugin.can_handle(mime, path):
-                plugin_res = plugin.analyze(path)
-                plugin_results[plugin.name] = plugin_res
+                plugin_results[plugin.name] = plugin.analyze(path)
         except Exception as e:
             plugin_results[f"{plugin.name}_error"] = str(e)
 
@@ -212,9 +290,13 @@ def analyze():
 
 @app.route("/embed", methods=["POST"])
 def embed():
+    """
+    Embed payload into carrier file using the first compatible plugin.
+    """
     fname = request.form.get("filename")
     password = request.form.get("password", "")
     payload_file = request.files.get("payload")
+
     if not fname or not payload_file:
         return jsonify({"error": "filename and payload required"}), 400
 
@@ -239,8 +321,12 @@ def embed():
 
 @app.route("/extract", methods=["POST"])
 def extract():
+    """
+    Extract hidden payload from file using compatible plugin.
+    """
     fname = request.form.get("filename")
     password = request.form.get("password", "")
+
     if not fname:
         return jsonify({"error": "filename required"}), 400
 
@@ -253,8 +339,9 @@ def extract():
             if p.can_handle(detect_mime(infile), infile) and hasattr(p, "extract"):
                 res = p.extract(infile, password)
 
+                # Binary payload response
                 if isinstance(res, dict) and isinstance(res.get("payload"), (bytes, bytearray)):
-                    payload = res.get("payload")
+                    payload = res["payload"]
                     suggested_name = res.get("name", "extracted.bin")
 
                     guessed_type, _ = mimetypes.guess_type(suggested_name)
@@ -267,15 +354,20 @@ def extract():
                         io.BytesIO(payload),
                         download_name=suggested_name,
                         as_attachment=not inline,
-                        mimetype=f"{guessed_type}; charset=utf-8" if guessed_type.startswith("text/") else guessed_type
+                        mimetype=(
+                            f"{guessed_type}; charset=utf-8"
+                            if guessed_type.startswith("text/")
+                            else guessed_type
+                        )
                     )
-
                 else:
                     return jsonify(res)
         except Exception as e:
             return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
 
     return jsonify({"error": "no plugin available to extract this file type"}), 400
+
+# ================= ENTRY POINT =================
 
 if __name__ == "__main__":
     print("Starting UniSteno server...")
