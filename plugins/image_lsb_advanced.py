@@ -32,15 +32,23 @@ class ImageLSBAdvancedPlugin:
                 bitplane_hist[ch][b] = int(np.count_nonzero((channel >> b) & 1))
 
         score = 0.0
+
         for ch in ["R", "G", "B"]:
-         lsb_ones = lsb_counts[ch]
-         lsb_ratio = lsb_ones / total
-        bit1_ones = bitplane_hist[ch][1]
-        bit1_ratio = bit1_ones / total
-        randomness_jump = abs(lsb_ratio - bit1_ratio)
-        chi_weighted = chi_sq[ch] / total
-        score += (randomness_jump * 2.0) + chi_weighted
-        score = round(score, 5)
+            lsb_ratio = lsb_counts[ch] / total
+            bit1_ratio = bitplane_hist[ch][1] / total
+            randomness_jump = abs(lsb_ratio - bit1_ratio)
+            NATURAL_R_JUMP = 0.015
+            NATURAL_CHI_LOG = 5.5
+            r_norm = min(abs(randomness_jump - NATURAL_R_JUMP) / NATURAL_R_JUMP, 1.0)
+
+            chi_val = chi_sq[ch]
+            chi_log = np.log10(chi_val + 1)
+            chi_norm = min(abs(chi_log - NATURAL_CHI_LOG) / NATURAL_CHI_LOG, 1.0)
+
+            score += 0.6 * r_norm + 0.4 * chi_norm
+
+        score /= 3.0
+        score = round(score, 4)
 
         return {
             "width": w, "height": h,
