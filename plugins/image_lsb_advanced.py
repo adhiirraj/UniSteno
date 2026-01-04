@@ -34,7 +34,9 @@ class ImageLSBAdvancedPlugin:
             (((total - ones) - exp) ** 2) / exp
         )
 
-    def analyze(self, path):
+    def analyze(self, path, options=None):
+        options = options or {}
+
         """
         Perform advanced LSB steganalysis:
         - LSB bit count

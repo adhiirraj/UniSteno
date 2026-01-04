@@ -18,7 +18,9 @@ class ImageBitplaneVisualizerPlugin:
         """
         return mime and mime.startswith("image/")
 
-    def analyze(self, path):
+    def analyze(self, path, options=None):
+        options = options or {}
+
         """
         Extract and visualize all 8 bitplanes for each RGB channel.
         Each bitplane is returned as a base64-encoded PNG image.

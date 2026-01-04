@@ -102,6 +102,39 @@
 
     $id("result-analyzers").insertAdjacentHTML("beforeend", html);
   }
+  
+  function renderSpectrogram(spec) {
+    if (!spec.spectrogram_url) return;
+
+    const html = `
+      <div class="mt-4">
+        <h6>Audio Spectrogram</h6>
+
+        <img
+          src="${spec.spectrogram_url}?t=${Date.now()}"
+          style="
+            width:100%;
+            border-radius:8px;
+            background:black;
+            border:1px solid rgba(255,255,255,0.15);
+          "
+          alt="Audio spectrogram"
+        />
+
+        <div class="small text-muted mt-1">
+          Duration: ${spec.duration_seconds}s ·
+          Sample rate: ${spec.sample_rate} Hz ·
+          ${spec.log_scale ? "Log scale" : "Linear scale"} ·
+          Scroll speed: ${spec.scroll_speed}
+        </div>
+      </div>
+    `;
+
+    document
+      .getElementById("result-analyzers")
+      .insertAdjacentHTML("beforeend", html);
+  }
+
 
   /* ================= MAIN APP LOGIC ================= */
 
@@ -118,6 +151,8 @@
     const resultInfos = $id("result-infos");
     const resultAnalyzers = $id("result-analyzers");
     const uploadStatus = $id("upload-status");
+    const audioControls = $id("audio-controls");
+
 
     // Stores filename returned by backend after upload
     let savedFilename = null;
@@ -126,6 +161,7 @@
     function clearResults() {
       resultInfos.innerHTML = "";
       resultAnalyzers.innerHTML = "";
+      audioControls.classList.add("d-none");
     }
 
     // Pretty-print JSON output
@@ -203,9 +239,22 @@
         const fd = new FormData();
         fd.append("filename", savedFilename);
 
+        const logScaleEl = document.getElementById("log-scale");
+        const scrollSpeedEl = document.getElementById("scroll-speed");
+
+        const logScale = logScaleEl ? logScaleEl.checked : true;
+        const scrollSpeed = scrollSpeedEl ? parseInt(scrollSpeedEl.value,10) : 3;
+
+        fd.append("log_scale", logScale ? "1" : "0");
+        fd.append("scroll_speed", scrollSpeed.toString());
+
         const res = await fetch(base + "/analyze", { method: "POST", body: fd });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || "Analyze failed");
+        // Show audio-only controls if file is audio
+        if (json.mime && json.mime.startsWith("audio/")) {
+          audioControls.classList.remove("d-none");
+        }
 
         // Basic file metadata
         resultInfos.innerHTML = pretty({
@@ -258,6 +307,12 @@
 
         const sup = json.plugins?.image_bitplane_superimposed;
         if (sup?.planes) renderSuperimposed(sup.planes);
+        
+        // Spectrogram visualization
+        const spec = json.plugins?.audio_spectrogram_visualizer;
+        if (spec?.spectrogram_url) {
+          renderSpectrogram(spec);
+        }
 
         return;
       }

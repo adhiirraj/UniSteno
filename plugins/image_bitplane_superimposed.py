@@ -18,7 +18,9 @@ class ImageBitplaneSuperimposedPlugin:
         """
         return mime and mime.startswith("image/")
 
-    def analyze(self, path):
+    def analyze(self, path, options=None):
+        options = options or {}
+
         """
         Generate superimposed RGB bitplane images.
         For each bit position (0–7), combines R, G, B bits into a single image.

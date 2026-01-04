@@ -44,7 +44,9 @@ class ImageLSBEntropyPlugin:
             p1 * math.log2(p1 + eps)
         )
 
-    def analyze(self, path):
+    def analyze(self, path, options=None):
+        options = options or {}
+
         """
         Perform LSB entropy analysis on the given image file.
 
