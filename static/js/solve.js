@@ -15,6 +15,81 @@
    * Render per-channel bitplane visualizations (R, G, B)
    * Each channel shows 8 bitplanes (bit 0 = LSB, bit 7 = MSB)
    */
+
+  function renderBitplaneHistogram(bitplaneHist){
+    const canvasId = 'bitplane-histogram';
+
+    const html = `
+      <div class="mt-4">
+        <h6>Bitplane Histogram</h6>
+        <canvas id="${canvasId}" width="900" height="360"
+          style="width:100%; background:#000; border-radius:8px;
+          border:1px solid rgba(255,255,255,0.15);">
+        </canvas>
+      </div>`
+
+    $id("result-analyzers").insertAdjacentHTML("beforeend", html);
+
+    const canvas = document.getElementById(canvasId);
+    const ctx = canvas.getContext('2d');
+
+    const bits = [...Array(8).keys()];
+    const channels = ['R', 'G', 'B'];
+    const colors = {
+      'R': 'rgba(255, 0, 0, 1)',
+      'G': 'rgba(0, 255, 0, 1)',
+      'B': 'rgba(0, 0, 255, 1)'
+    };
+
+    // FInd max value for scaling
+    let maxVal = 0;
+    for (const ch of channels) {
+      for (const b of bits) {
+        maxVal= Math.max(maxVal, bitplaneHist[ch][b]);
+      }
+    }
+    const padding = 50;
+    const charWidth = (canvas.width - 2 * padding);
+    const charHeight = (canvas.height - 2 * padding);
+    const groupWIdth = charWidth / bits.length;
+    const barWidth = groupWIdth / 4;
+
+    //Background
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw Axes
+    ctx.strokeStyle = '#ffffff4a';
+    ctx.beginPath();
+    ctx.moveTo(padding, padding);
+    ctx.lineTo(padding, canvas.height - padding);
+    ctx.lineTo(canvas.width - padding, canvas.height - padding);
+    ctx.stroke();
+
+    // Draw Bars
+    bits.forEach((bit,i) => {
+      channels.forEach((ch,j) => {
+        const value = bitplaneHist[ch][bit];
+        const barHeight = (value / maxVal) * charHeight;
+        const x = padding + i * groupWIdth + j * barWidth + barWidth / 2;
+        const y = canvas.height - padding - barHeight;
+
+        ctx.fillStyle = colors[ch];
+        ctx.fillRect(x, y, barWidth, barHeight);
+      });
+
+      //Bit labels
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '12px Monospace';
+      ctx.textalign = 'center';
+      ctx.fillText(
+        bit.toString(),
+        padding + i * groupWIdth + groupWIdth / 2,
+        canvas.height - padding + 18
+      )
+    });
+  }
+
   function renderBitplanes(planes) {
     let html = "<h6 class='mt-4'>Bitplane Visualization</h6>";
 
@@ -265,13 +340,11 @@
 
         // Clone plugin output to avoid mutation
         const plugins = structuredClone(json.plugins || {});
-
-        // Remove large image blobs from JSON display
-        if (plugins.image_bitplane_visualizer)
-          delete plugins.image_bitplane_visualizer.planes;
-
-        if (plugins.image_bitplane_superimposed)
-          delete plugins.image_bitplane_superimposed.planes;
+        if (plugins.image_lsb_advanced?.bitplane_hist) {
+          delete plugins.image_lsb_advanced.bitplane_hist;
+        }
+        delete plugins.image_bitplane_visualizer;
+        delete plugins.image_bitplane_superimposed;
 
         // Display remaining plugin outputs
         if (Object.keys(plugins).length) {
@@ -301,6 +374,12 @@
           renderSuspicionBar(s.score, s.name);
         }
 
+        //Histogram of bitplane values
+        const adv = json.plugins?.image_lsb_advanced;
+        if (adv?.bitplane_hist){
+          renderBitplaneHistogram(adv.bitplane_hist);
+        }
+          
         // Bitplane visualizations
         const bit = json.plugins?.image_bitplane_visualizer;
         if (bit?.planes) renderBitplanes(bit.planes);
