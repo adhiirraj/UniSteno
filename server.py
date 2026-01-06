@@ -148,9 +148,20 @@ def cleanup_old_uploads(max_age_seconds: int = 3600):
 def index():
     return send_from_directory(".", "index.html")
 
+# 🔹 Regular file serving (images, downloads, etc.)
 @app.route("/uploads/<path:fname>")
 def serve_upload(fname):
     return send_from_directory(UPLOAD_DIR, fname, as_attachment=False)
+
+# 🔹 MEDIA STREAMING ROUTE (FIXES VIDEO RENDERING)
+@app.route("/media/<path:fname>")
+def serve_media(fname):
+    full_path = UPLOAD_DIR / fname
+    if not full_path.exists():
+        return jsonify({"error": "file not found"}), 404
+
+    # conditional=True enables HTTP Range requests (required for <video>)
+    return send_file(full_path, conditional=True)
 
 @app.route("/upload", methods=["POST"])
 def upload():
@@ -187,7 +198,6 @@ def analyze():
 
     mime = detect_mime(path)
 
-    # 🔹 READ CONTROLS HERE (correct place)
     log_scale = request.form.get("log_scale", "1") == "1"
     scroll_speed = int(request.form.get("scroll_speed", "3"))
 
@@ -222,7 +232,6 @@ def analyze():
             response["text_error"] = str(e)
 
     plugin_results = {}
-
     options = {
         "log_scale": log_scale,
         "scroll_speed": scroll_speed
@@ -230,11 +239,10 @@ def analyze():
 
     for plugin in LOADED_PLUGINS:
         try:
-           if plugin.can_handle(mime, path):
+            if plugin.can_handle(mime, path):
                 plugin_results[plugin.name] = plugin.analyze(path, options)
         except Exception as e:
             plugin_results[f"{plugin.name}_error"] = str(e)
-
 
     if plugin_results:
         response["plugins"] = plugin_results

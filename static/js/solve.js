@@ -41,18 +41,18 @@
       'B': 'rgba(0, 0, 255, 1)'
     };
 
-    // FInd max value for scaling
+    // Find max value for scaling
     let maxVal = 0;
     for (const ch of channels) {
       for (const b of bits) {
-        maxVal= Math.max(maxVal, bitplaneHist[ch][b]);
+        maxVal = Math.max(maxVal, bitplaneHist[ch][b]);
       }
     }
     const padding = 50;
     const charWidth = (canvas.width - 2 * padding);
     const charHeight = (canvas.height - 2 * padding);
-    const groupWIdth = charWidth / bits.length;
-    const barWidth = groupWIdth / 4;
+    const groupWidth = charWidth / bits.length;
+    const barWidth = groupWidth / 4;
 
     //Background
     ctx.fillStyle = '#000';
@@ -71,7 +71,7 @@
       channels.forEach((ch,j) => {
         const value = bitplaneHist[ch][bit];
         const barHeight = (value / maxVal) * charHeight;
-        const x = padding + i * groupWIdth + j * barWidth + barWidth / 2;
+        const x = padding + i * groupWidth + j * barWidth + barWidth / 2;
         const y = canvas.height - padding - barHeight;
 
         ctx.fillStyle = colors[ch];
@@ -81,10 +81,10 @@
       //Bit labels
       ctx.fillStyle = '#ffffff';
       ctx.font = '12px Monospace';
-      ctx.textalign = 'center';
+      ctx.textAlign = 'center';
       ctx.fillText(
         bit.toString(),
-        padding + i * groupWIdth + groupWIdth / 2,
+        padding + i * groupWidth + groupWidth / 2,
         canvas.height - padding + 18
       )
     });
@@ -93,33 +93,64 @@
   function renderBitplanes(planes) {
     let html = "<h6 class='mt-4'>Bitplane Visualization</h6>";
 
-    // Iterate over RGB channels
-    for (const ch of ["R", "G", "B"]) {
+    for (const ch of ["R", "G", "B", "SUPER"]) {
+      if (!planes[ch]) continue;
+
       html += `
         <div class="mb-3">
           <strong>${ch} Channel</strong>
           <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:8px">
       `;
 
-      // Render each bitplane image
       for (let bit = 0; bit < 8; bit++) {
-        const img = planes[ch][`bit_${bit}`];
+        const media = planes[ch][`bit_${bit}`];
+        if (!media) continue;
+
+        const isVideo = /\.(mp4|avi|webm)$/i.test(media);
+
         html += `
           <div style="text-align:center;font-size:11px">
-            <img src="data:image/png;base64,${img}"
-                 style="width:100%;border-radius:4px;
-                        border:1px solid rgba(255,255,255,.15);
-                        image-rendering:pixelated"/>
+            ${
+              isVideo
+                ? `
+                  <video
+                    src="${base}${media}"
+                    muted
+                    autoplay
+                    loop
+                    playsinline
+                    preload="metadata"
+                    style="
+                      width:100%;
+                      display:block;
+                      background:black;
+                      border-radius:4px;
+                      border:1px solid rgba(255,255,255,.15);
+                    ">
+                  </video>
+                `
+                : `
+                  <img
+                    src="data:image/png;base64,${media}"
+                    style="
+                      width:100%;
+                      border-radius:4px;
+                      border:1px solid rgba(255,255,255,.15);
+                      image-rendering:pixelated;
+                    "/>
+                `
+            }
             <div>Bit ${bit}</div>
-          </div>`;
+          </div>
+        `;
       }
 
       html += "</div></div>";
     }
 
-    // Inject visualization into results section
     $id("result-analyzers").insertAdjacentHTML("beforeend", html);
   }
+
 
   /**
    * Render superimposed RGB bitplanes
@@ -343,6 +374,9 @@
         if (plugins.image_lsb_advanced?.bitplane_hist) {
           delete plugins.image_lsb_advanced.bitplane_hist;
         }
+        if (plugins.video_lsb_advanced?.bitplane_hist) {
+          delete plugins.video_lsb_advanced.bitplane_hist;
+        }
         delete plugins.image_bitplane_visualizer;
         delete plugins.image_bitplane_superimposed;
 
@@ -375,14 +409,22 @@
         }
 
         //Histogram of bitplane values
-        const adv = json.plugins?.image_lsb_advanced;
-        if (adv?.bitplane_hist){
-          renderBitplaneHistogram(adv.bitplane_hist);
+        const imgAdv = json.plugins?.image_lsb_advanced;
+        if (imgAdv?.bitplane_hist) {
+          renderBitplaneHistogram(imgAdv.bitplane_hist);
+        }
+
+        const vidAdv = json.plugins?.video_lsb_advanced;
+        if (vidAdv?.bitplane_hist) {
+          renderBitplaneHistogram(vidAdv.bitplane_hist);
         }
           
         // Bitplane visualizations
         const bit = json.plugins?.image_bitplane_visualizer;
         if (bit?.planes) renderBitplanes(bit.planes);
+
+        const vbit = json.plugins?.video_bitplane_visualizer;
+        if (vbit?.planes) renderBitplanes(vbit.planes); 
 
         const sup = json.plugins?.image_bitplane_superimposed;
         if (sup?.planes) renderSuperimposed(sup.planes);
